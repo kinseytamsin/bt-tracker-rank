@@ -41,6 +41,7 @@ dependencies = [
  "bincode",
  "futures-core",
  "futures-util",
+ "quanta",
  "rand",
  "reqwest",
  "serde",
@@ -613,6 +614,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3acb317c6ff86a4e579dfa00fc5e6cca91ecbb4e7eb2df0468805b674eb88548"
 dependencies = [
  "unicode-xid",
+]
+
+[[package]]
+name = "quanta"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d98dc777a7a39b76b1a26ae9d3f691f4c1bc0455090aa0b64dfa8cb7fc34c135"
+dependencies = [
+ "libc",
+ "winapi 0.3.8",
 ]
 
 [[package]]

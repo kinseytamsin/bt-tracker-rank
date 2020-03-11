@@ -12,6 +12,7 @@ use std::{
 
 use futures_core::{ready, TryFuture};
 use futures_util::FutureExt;
+use quanta::Clock;
 use rand::{Rng, distributions::Uniform};
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
@@ -70,14 +71,17 @@ struct TrackerResponse {
 #[derive(Debug)]
 struct DurationFuture<F: Future> {
     inner: F,
-    start: Option<Instant>,
+    // raw time from a quanta Clock
+    start: Option<u64>,
+    clock: Option<Clock>,
 }
 
 impl<F: Future> DurationFuture<F> {
-    fn new(inner: F, start: Option<Instant>) -> Self {
+    fn new(inner: F, start: Option<u64>, clock: Option<Clock>) -> Self {
         Self {
             inner,
             start,
+            clock,
         }
     }
 
@@ -85,8 +89,12 @@ impl<F: Future> DurationFuture<F> {
         unsafe { self.map_unchecked_mut(|s| &mut s.inner) }
     }
 
-    fn pin_get_start(self: Pin<&mut Self>) -> &mut Option<Instant> {
+    fn pin_get_start(self: Pin<&mut Self>) -> &mut Option<u64> {
         unsafe { &mut self.get_unchecked_mut().start }
+    }
+
+    fn pin_get_clock(self: Pin<&mut Self>) -> &mut Option<Clock> {
+        unsafe { &mut self.get_unchecked_mut().clock }
     }
 }
 
@@ -94,11 +102,19 @@ impl<F: Future> Future for DurationFuture<F> {
     type Output = (F::Output, Duration);
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         if self.start.is_none() {
-            *self.as_mut().pin_get_start() = Some(Instant::now());
+            if self.clock.is_none() {
+                *self.as_mut().pin_get_clock() = Some(Clock::new());
+            }
+            *self.as_mut().pin_get_start() = Some(
+                self.clock.as_ref().unwrap().start()
+            );
         }
+        let inner_output = ready!(self.as_mut().pin_get_inner().poll(cx));
+        let clock = self.clock.as_ref().unwrap();
+        let end = clock.end();
         Poll::Ready((
-            ready!(self.as_mut().pin_get_inner().poll(cx)),
-            self.start.unwrap().elapsed(),
+            inner_output,
+            clock.delta(*self.start.as_ref().unwrap(), end),
         ))
     }
 }
@@ -218,7 +234,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let http_req_fut = client.get(tracker_url).send();
                 // TODO: expected point of failure: connecting to host
                 let (http_resp, resp_time) =
-                    DurationFuture::new(http_req_fut, None).await;
+                    DurationFuture::new(http_req_fut, None, None).await;
                 let http_resp = http_resp?;
                 let http_bytes = http_resp.bytes().await?;
                 // TODO: fail early on empty response body

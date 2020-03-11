@@ -4,10 +4,14 @@ version = "0.1.0"
 authors = ["Kinsey Favre <kinseytamsin@tutanota.com>"]
 edition = "2018"
 
+[features]
+nightly = ["quanta/asm"]
+
 [dependencies]
 bincode = "1.2.1"
 futures-core = "0.3.4"
 futures-util = "0.3.4"
+quanta = "0.4.1"
 rand = "0.7.3"
 reqwest = "0.10.1"
 serde = { version = "1.0.104", features = [ "derive" ] }
